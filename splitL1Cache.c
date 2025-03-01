@@ -65,6 +65,7 @@ void update_lru(bool is_i_or_d, int way, uint32_t index, uint32_t tag)
 {
     if (~is_i_or_d)
     {
+        // Update D-Cache LRU
         int accessed_lru_cnt = dcache[index].lines[way].lru_counter;
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
@@ -74,7 +75,7 @@ void update_lru(bool is_i_or_d, int way, uint32_t index, uint32_t tag)
             }
         }
 
-        dcache[index].lines[way].lru_counter = L1_DCACHE_WAYS;
+        dcache[index].lines[way].lru_counter = L1_DCACHE_WAYS - 1;
     }
 }
 
