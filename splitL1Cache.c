@@ -66,26 +66,104 @@ void print_cache_index(bool whichCache, uint32_t index)
             printf("Tag: %03x\t", tmp.lines[i].tag);
             printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
             printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
+            printf("\n");
         }
     }
 }
 
 void update_lru(bool is_i_or_d, int way, uint32_t index, uint32_t tag)
 {
-    if (~is_i_or_d)
+    CacheLine *linePtr = is_i_or_d ? &icache[index].lines[way] : &dcache[index].lines[way];
+    int cache_ways = is_i_or_d ? L1_ICACHE_WAYS : L1_DCACHE_WAYS;
+
+    int accessed_lru_cnt = dcache[index].lines[way].lru_counter;
+    for (int i = 0; i < cache_ways; i++)
     {
-        // Update D-Cache LRU
-        int accessed_lru_cnt = dcache[index].lines[way].lru_counter;
-        for (int i = 0; i < L1_DCACHE_WAYS; i++)
+        if (linePtr->lru_counter > accessed_lru_cnt)
         {
-            if (dcache[index].lines[i].lru_counter > accessed_lru_cnt)
+            linePtr->lru_counter--;
+        }
+    }
+
+    linePtr->lru_counter = cache_ways - 1;
+}
+
+void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
+{
+    // Function to update MESI state
+    CacheLine *linePtr = is_i_or_d ? &icache[index].lines[way] : &dcache[index].lines[way];
+    switch (linePtr->state)
+    {
+    case MODIFIED:
+        break;
+    case EXCLUSIVE:
+        if (r_or_w)
+        {
+            // This is read
+            linePtr->state = EXCLUSIVE;
+        }
+        else
+        {
+            // This is write
+            linePtr->state = MODIFIED;
+        }
+        break;
+    case INVALID:
+        if (r_or_w)
+        {
+            // This is read
+            linePtr->state = EXCLUSIVE;
+        }
+        else
+        {
+            // This is write
+            linePtr->state = MODIFIED;
+        }
+        break;
+    case SHARED:
+        break;
+    default:
+        break;
+    }
+}
+
+bool write_d_cache(uint32_t index, uint32_t tag)
+{
+    // For handling Case 2
+    bool isHit = false;
+    for (int i = 0; i < L1_DCACHE_WAYS; i++)
+    {
+        // check if valid bit is 1
+        if (dcache[index].lines[i].valid)
+        {
+            // Valid bit is set, now compare tags
+            if (dcache[index].lines[i].tag == tag)
             {
-                dcache[index].lines[i].lru_counter--;
+                // Tag bit also matches, this means we have a Hit
+                isHit = true;
+                update_MESI(false, i, index, false);
+                update_lru(false, i, index, tag);
+                break;
             }
         }
-
-        dcache[index].lines[way].lru_counter = L1_DCACHE_WAYS - 1;
     }
+    if (!isHit)
+    {
+        // Handle the miss
+        for (int i = 0; i < L1_DCACHE_WAYS; i++)
+        {
+            // Find the way which has lru_counter set to 0 i.e. it is LRU
+            if (dcache[index].lines[i].lru_counter == 0)
+            {
+                dcache[index].lines[i].valid = true;
+                dcache[index].lines[i].tag = tag;
+                update_MESI(false, i, index, false);
+                update_lru(false, i, index, tag);
+                break;
+            }
+        }
+    }
+    return isHit;
 }
 
 bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
@@ -104,6 +182,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                 {
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
+                    update_MESI(is_i_or_d, i, index, true);
                     update_lru(is_i_or_d, i, index, tag);
                     break;
                 }
@@ -119,14 +198,49 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                 {
                     dcache[index].lines[i].valid = true;
                     dcache[index].lines[i].tag = tag;
-                    dcache[index].lines[i].state = EXCLUSIVE;
+                    update_MESI(is_i_or_d, i, index, true);
                     update_lru(is_i_or_d, i, index, tag);
                     break;
                 }
             }
         }
-        return isHit;
     }
+    else
+    {
+        // This is I-Cache
+        for (int i = 0; i < L1_ICACHE_WAYS; i++)
+        {
+            // check if valid bit is 1
+            if (icache[index].lines[i].valid)
+            {
+                // Valid bit is set, now compare tags
+                if (icache[index].lines[i].tag == tag)
+                {
+                    // Tag bit also matches, this means we have a Hit
+                    isHit = true;
+                    update_lru(is_i_or_d, i, index, tag);
+                    break;
+                }
+            }
+        }
+        if (!isHit)
+        {
+            // Handle the miss
+            for (int i = 0; i < L1_ICACHE_WAYS; i++)
+            {
+                // Find the way which has lru_counter set to 0 i.e. it is LRU
+                if (icache[index].lines[i].lru_counter == 0)
+                {
+                    icache[index].lines[i].valid = true;
+                    icache[index].lines[i].tag = tag;
+                    icache[index].lines[i].state = EXCLUSIVE;
+                    update_lru(is_i_or_d, i, index, tag);
+                    break;
+                }
+            }
+        }
+    }
+    return isHit;
 }
 
 // Function to access the cache (read/write operations)
@@ -147,6 +261,7 @@ void access_cache(uint32_t address, int operation)
     switch (operation)
     {
     case 0:
+    case 2:
         cache_reads++;
         if (read_cache(is_i_or_d, index, tag))
         {
@@ -157,7 +272,17 @@ void access_cache(uint32_t address, int operation)
             cache_misses++;
         }
         break;
-
+    case 1:
+        cache_writes++;
+        if (write_d_cache(index, tag))
+        {
+            cache_hits++;
+        }
+        else
+        {
+            cache_misses++;
+        }
+        break;
     default:
         break;
     }
