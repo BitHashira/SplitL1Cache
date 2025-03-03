@@ -108,6 +108,8 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
             linePtr->state = MODIFIED;
         }
         break;
+    case SHARED:
+        break;
     case INVALID:
         if (r_or_w)
         {
@@ -119,8 +121,6 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
             // This is write
             linePtr->state = MODIFIED;
         }
-        break;
-    case SHARED:
         break;
     default:
         break;
@@ -282,6 +282,9 @@ void access_cache(uint32_t address, int operation)
         {
             cache_misses++;
         }
+        break;
+    case 9:
+        print_cache_index(is_i_or_d, index);
         break;
     default:
         break;
