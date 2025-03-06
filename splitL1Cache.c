@@ -71,7 +71,7 @@ void print_cache_index(bool whichCache, uint32_t index)
     }
 }
 
-void update_lru(bool is_i_or_d, int way, uint32_t index, uint32_t tag)
+void update_lru(bool is_i_or_d, int way, uint32_t index)
 {
     CacheLine *linePtr = is_i_or_d ? &icache[index].lines[way] : &dcache[index].lines[way];
     int cache_ways = is_i_or_d ? L1_ICACHE_WAYS : L1_DCACHE_WAYS;
@@ -142,7 +142,7 @@ bool write_d_cache(uint32_t index, uint32_t tag)
                 // Tag bit also matches, this means we have a Hit
                 isHit = true;
                 update_MESI(false, i, index, false);
-                update_lru(false, i, index, tag);
+                update_lru(false, i, index);
                 break;
             }
         }
@@ -158,7 +158,7 @@ bool write_d_cache(uint32_t index, uint32_t tag)
                 dcache[index].lines[i].valid = true;
                 dcache[index].lines[i].tag = tag;
                 update_MESI(false, i, index, false);
-                update_lru(false, i, index, tag);
+                update_lru(false, i, index);
                 break;
             }
         }
@@ -183,7 +183,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
                     update_MESI(is_i_or_d, i, index, true);
-                    update_lru(is_i_or_d, i, index, tag);
+                    update_lru(is_i_or_d, i, index);
                     break;
                 }
             }
@@ -199,7 +199,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                     dcache[index].lines[i].valid = true;
                     dcache[index].lines[i].tag = tag;
                     update_MESI(is_i_or_d, i, index, true);
-                    update_lru(is_i_or_d, i, index, tag);
+                    update_lru(is_i_or_d, i, index);
                     break;
                 }
             }
@@ -218,7 +218,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                 {
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
-                    update_lru(is_i_or_d, i, index, tag);
+                    update_lru(is_i_or_d, i, index);
                     break;
                 }
             }
@@ -234,7 +234,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                     icache[index].lines[i].valid = true;
                     icache[index].lines[i].tag = tag;
                     icache[index].lines[i].state = EXCLUSIVE;
-                    update_lru(is_i_or_d, i, index, tag);
+                    update_lru(is_i_or_d, i, index);
                     break;
                 }
             }

@@ -16,17 +16,17 @@
 // MESI protocol states
 typedef enum
 {
-    INVALID,
+    MODIFIED,
     EXCLUSIVE,
     SHARED,
-    MODIFIED
+    INVALID
 } MESI_State;
 
 const char *MESI_State_strings[] = {
-    "INVALID",
+    "MODIFIED",
     "EXCLUSIVE",
     "SHARED",
-    "MODIFIED"};
+    "INVALID"};
 
 // Structure representing a cache line
 typedef struct
