@@ -22,12 +22,17 @@ uint32_t address;
 // Function to initialize caches
 void initialize_cache()
 {
+    cache_reads = 0;
+    cache_writes = 0;
+    cache_hits = 0;
+    cache_misses = 0;
     for (int i = 0; i < L1_CACHE_SETS; i++)
     {
         for (int j = 0; j < L1_ICACHE_WAYS; j++)
         {
             icache[i].lines[j].valid = false;
             icache[i].lines[j].state = INVALID;
+            icache[i].lines[j].tag = 000;
             icache[i].lines[j].lru_counter = j;
         }
     }
@@ -37,6 +42,7 @@ void initialize_cache()
         {
             dcache[i].lines[j].valid = false;
             dcache[i].lines[j].state = INVALID;
+            dcache[i].lines[j].tag = 000;
             dcache[i].lines[j].lru_counter = j;
         }
     }
@@ -424,10 +430,6 @@ void access_cache(uint32_t address, int operation)
         break;
 
     case 8:
-        cache_reads = 0;
-        cache_writes = 0;
-        cache_hits = 0;
-        cache_misses = 0;
         initialize_cache();
         break;
     case 9:
