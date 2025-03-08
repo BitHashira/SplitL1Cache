@@ -215,6 +215,36 @@ void handle_invalidate(uint32_t index, uint32_t tag)
 return;
 }
 
+void handle_RFO(uint32_t index, uint32_t tag)
+{
+    for (int i = 0; i < L1_DCACHE_WAYS; i++)
+    {
+        // check if valid bit is 1
+        if (dcache[index].lines[i].valid)
+        {
+            // Valid bit is set, now compare tags
+            if (dcache[index].lines[i].tag == tag)
+            {
+               
+                if (dcache[index].lines[i].state == MODIFIED)
+                {
+                    printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+
+                    dcache[index].lines[i].state = INVALID;
+                    dcache[index].lines[i].valid = false;
+
+                }
+                else
+                {
+                    dcache[index].lines[i].state = INVALID;
+                    dcache[index].lines[i].valid = false;
+                }
+            }
+        }
+    }
+    return;
+}
+
 bool write_d_cache(uint32_t index, uint32_t tag)
 {
     // For handling Case 2
@@ -390,6 +420,10 @@ void access_cache(uint32_t address, int operation)
         break;
     case 3:
         handle_invalidate(index,tag);
+        printf("\n\nInvalidate Command Sent to all Processors.\n\n\n");
+        break;
+    case 4:
+        handle_RFO(index,tag);
         break;
     case 9:
         print_cache_index(is_i_or_d, index);
@@ -398,7 +432,7 @@ void access_cache(uint32_t address, int operation)
         break;
     }
 
-    print_cache_index(is_i_or_d, index);
+    //print_cache_index(is_i_or_d, index);
 }
 
 // Function to process trace file and simulate cache behavior
