@@ -15,6 +15,9 @@ DCacheSet dcache[L1_CACHE_SETS];
 
 // Cache statistics
 uint32_t cache_reads = 0, cache_writes = 0, cache_hits = 0, cache_misses = 0;
+bool debug_mode = false;
+int operation;
+uint32_t address;
 
 // Function to initialize caches
 void initialize_cache()
@@ -73,19 +76,32 @@ void print_cache_index(bool whichCache, uint32_t index)
 
 void update_lru(bool is_i_or_d, int way, uint32_t index)
 {
-    CacheLine *linePtr = is_i_or_d ? &icache[index].lines[way] : &dcache[index].lines[way];
-    int cache_ways = is_i_or_d ? L1_ICACHE_WAYS : L1_DCACHE_WAYS;
-
-    int accessed_lru_cnt = dcache[index].lines[way].lru_counter;
-    for (int i = 0; i < cache_ways; i++)
+    if (!is_i_or_d)
     {
-        if (linePtr->lru_counter > accessed_lru_cnt)
+        // This is D-Cache
+        int accessed_lru_cnt = dcache[index].lines[way].lru_counter;
+        for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
-            linePtr->lru_counter--;
+            if (dcache[index].lines[i].lru_counter > accessed_lru_cnt)
+            {
+                dcache[index].lines[i].lru_counter--;
+            }
         }
+        dcache[index].lines[way].lru_counter = L1_DCACHE_WAYS - 1;
     }
-
-    linePtr->lru_counter = cache_ways - 1;
+    else
+    {
+        // This is I-Cache
+        int accessed_lru_cnt = icache[index].lines[way].lru_counter;
+        for (int i = 0; i < L1_ICACHE_WAYS; i++)
+        {
+            if (icache[index].lines[i].lru_counter > accessed_lru_cnt)
+            {
+                icache[index].lines[i].lru_counter--;
+            }
+        }
+        icache[index].lines[way].lru_counter = L1_ICACHE_WAYS - 1;
+    }
 }
 
 void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
@@ -95,6 +111,16 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
     switch (linePtr->state)
     {
     case MODIFIED:
+        if (r_or_w)
+        {
+            // This is read
+            linePtr->state = MODIFIED;
+        }
+        else
+        {
+            // This is write
+            linePtr->state = MODIFIED;
+        }
         break;
     case EXCLUSIVE:
         if (r_or_w)
@@ -109,6 +135,16 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
         }
         break;
     case SHARED:
+        if (r_or_w)
+        {
+            // This is read
+            linePtr->state = SHARED;
+        }
+        else
+        {
+            // This is write
+            linePtr->state = MODIFIED;
+        }
         break;
     case INVALID:
         if (r_or_w)
@@ -124,6 +160,38 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
         break;
     default:
         break;
+    }
+}
+
+int get_victim_way(bool is_i_or_d, uint32_t index)
+{
+    if (!is_i_or_d)
+    {
+        // This is D-Cache
+        for (int i = 0; i < L1_DCACHE_WAYS; i++)
+        {
+            if (dcache[index].lines[i].valid == false)
+                return i; // We found a way with valid bit set to false, so return
+        }
+        for (int i = 0; i < L1_DCACHE_WAYS; i++)
+        {
+            if (dcache[index].lines[i].lru_counter == 0)
+                return i; // We found a way which is LRU, so return
+        }
+    }
+    else
+    {
+        // This is I-Cache
+        for (int i = 0; i < L1_ICACHE_WAYS; i++)
+        {
+            if (icache[index].lines[i].valid == false)
+                return i; // We found a way with valid bit set to false, so return
+        }
+        for (int i = 0; i < L1_ICACHE_WAYS; i++)
+        {
+            if (icache[index].lines[i].lru_counter == 0)
+                return i; // We found a way which is LRU, so return
+        }
     }
 }
 
@@ -150,18 +218,21 @@ bool write_d_cache(uint32_t index, uint32_t tag)
     if (!isHit)
     {
         // Handle the miss
-        for (int i = 0; i < L1_DCACHE_WAYS; i++)
+        // Debug print to L2
+        if (debug_mode)
+            printf("Read for Ownership from L2 %x\n", address);
+
+        // Find which way to evict
+        int evict_way = get_victim_way(false, index);
+        if (debug_mode)
         {
-            // Find the way which has lru_counter set to 0 i.e. it is LRU
-            if (dcache[index].lines[i].lru_counter == 0)
-            {
-                dcache[index].lines[i].valid = true;
-                dcache[index].lines[i].tag = tag;
-                update_MESI(false, i, index, false);
-                update_lru(false, i, index);
-                break;
-            }
+            if (dcache[index].lines[evict_way].state == MODIFIED)
+                printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
         }
+        dcache[index].lines[evict_way].valid = true;
+        dcache[index].lines[evict_way].tag = tag;
+        dcache[index].lines[evict_way].state = MODIFIED;
+        update_lru(false, evict_way, index);
     }
     return isHit;
 }
@@ -169,8 +240,9 @@ bool write_d_cache(uint32_t index, uint32_t tag)
 bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
 {
     bool isHit = false;
-    if (~is_i_or_d)
+    if (!is_i_or_d)
     {
+        printf("I am in D-Cache read\n");
         // This is D-Cache
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
@@ -191,22 +263,28 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
         if (!isHit)
         {
             // Handle the miss
-            for (int i = 0; i < L1_DCACHE_WAYS; i++)
+            // Debug print to L2
+            if (debug_mode)
+                printf("Read from L2 %x\n", address);
+
+            // Handle the miss
+            // Find which way to evict
+            int evict_way = get_victim_way(false, index);
+            if (debug_mode)
             {
-                // Find the way which has lru_counter set to 0 i.e. it is LRU
-                if (dcache[index].lines[i].lru_counter == 0)
-                {
-                    dcache[index].lines[i].valid = true;
-                    dcache[index].lines[i].tag = tag;
-                    update_MESI(is_i_or_d, i, index, true);
-                    update_lru(is_i_or_d, i, index);
-                    break;
-                }
+                if (dcache[index].lines[evict_way].state == MODIFIED)
+                    printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
             }
+            dcache[index].lines[evict_way].valid = true;
+            dcache[index].lines[evict_way].tag = tag;
+            dcache[index].lines[evict_way].state = EXCLUSIVE;
+            update_lru(is_i_or_d, evict_way, index);
         }
     }
     else
     {
+        printf("I am in I-Cache read\n");
+        isHit = false;
         // This is I-Cache
         for (int i = 0; i < L1_ICACHE_WAYS; i++)
         {
@@ -219,6 +297,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
                     update_lru(is_i_or_d, i, index);
+                    update_MESI(is_i_or_d, i, index, true);
                     break;
                 }
             }
@@ -226,18 +305,22 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
         if (!isHit)
         {
             // Handle the miss
-            for (int i = 0; i < L1_ICACHE_WAYS; i++)
+            // Debug print to L2
+            if (debug_mode)
+                printf("Read from L2 %x\n", address);
+
+            // Find which way to evict
+            int evict_way = get_victim_way(true, index);
+            if (debug_mode)
             {
-                // Find the way which has lru_counter set to 0 i.e. it is LRU
-                if (icache[index].lines[i].lru_counter == 0)
-                {
-                    icache[index].lines[i].valid = true;
-                    icache[index].lines[i].tag = tag;
-                    icache[index].lines[i].state = EXCLUSIVE;
-                    update_lru(is_i_or_d, i, index);
-                    break;
-                }
+                if (icache[index].lines[evict_way].state == MODIFIED)
+                    printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
             }
+
+            icache[index].lines[evict_way].valid = true;
+            icache[index].lines[evict_way].tag = tag;
+            icache[index].lines[evict_way].state = EXCLUSIVE;
+            update_lru(is_i_or_d, evict_way, index);
         }
     }
     return isHit;
@@ -257,6 +340,8 @@ void access_cache(uint32_t address, int operation)
     printf("Given Addr: %x\n", address);
     printf("Index: %x\n", index);
     printf("Tag: %x\n", tag);
+
+    printf("is_i_or_d: %s\n", is_i_or_d ? "true" : "false");
 
     switch (operation)
     {
@@ -303,8 +388,6 @@ void process_trace_file(const char *filename)
         return;
     }
 
-    int operation;
-    uint32_t address;
     while (fscanf(file, "%d %x", &operation, &address) == 2)
     {
         access_cache(address, operation);
@@ -325,11 +408,14 @@ void print_stats()
 // Main function to initialize and run the simulation
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        fprintf(stderr, "Usage: %s <trace_file>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <trace_file> <mode>\n", argv[0]);
         return 1;
     }
+
+    debug_mode = argv[2];
+
     initialize_cache();
     process_trace_file(argv[1]);
     print_stats();
