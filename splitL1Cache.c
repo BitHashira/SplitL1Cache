@@ -51,7 +51,7 @@ void print_cache_index(bool whichCache, uint32_t index)
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
             printf("Way: %d\n", i);
-            printf("Valid: %b\t", tmp.lines[i].valid);
+            printf("Valid: %s\t", tmp.lines[i].valid ? "true":"false");
             printf("Tag: %03x\t", tmp.lines[i].tag);
             printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
             printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
@@ -65,7 +65,7 @@ void print_cache_index(bool whichCache, uint32_t index)
         for (int i = 0; i < L1_ICACHE_WAYS; i++)
         {
             printf("Way: %d\n", i);
-            printf("Valid: %b\t", tmp.lines[i].valid);
+            printf("Valid: %s\t", tmp.lines[i].valid ? "true":"false");
             printf("Tag: %03x\t", tmp.lines[i].tag);
             printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
             printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
@@ -366,6 +366,7 @@ void access_cache(uint32_t address, int operation)
     switch (operation)
     {
     case 0:
+        break;
     case 2:
         cache_reads++;
         if (read_cache(is_i_or_d, index, tag))
@@ -390,6 +391,14 @@ void access_cache(uint32_t address, int operation)
         break;
     case 3:
         handle_invalidate(index,tag);
+        break;
+
+    case 8:
+        cache_reads = 0;
+        cache_writes = 0;
+        cache_hits = 0;
+        cache_misses = 0;
+        initialize_cache();
         break;
     case 9:
         print_cache_index(is_i_or_d, index);
