@@ -193,6 +193,26 @@ int get_victim_way(bool is_i_or_d, uint32_t index)
                 return i; // We found a way which is LRU, so return
         }
     }
+    return 0;
+}
+
+void handle_invalidate(uint32_t index, uint32_t tag)
+{
+
+    for (int i = 0; i < L1_DCACHE_WAYS; i++)
+    {
+        // check if valid bit is 1
+        if (dcache[index].lines[i].valid)
+        {
+            // Valid bit is set, now compare tags
+            if (dcache[index].lines[i].tag == tag)
+            {   
+                dcache[index].lines[i].state = INVALID;
+                dcache[index].lines[i].valid = false;
+            }
+        }
+    }
+return;
 }
 
 bool write_d_cache(uint32_t index, uint32_t tag)
@@ -367,6 +387,9 @@ void access_cache(uint32_t address, int operation)
         {
             cache_misses++;
         }
+        break;
+    case 3:
+        handle_invalidate(index,tag);
         break;
     case 9:
         print_cache_index(is_i_or_d, index);
