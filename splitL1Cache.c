@@ -1,7 +1,7 @@
 /*
 ECE 585 Final Project
 
-Amey, Anthony, Belaal, Eva Vo, Sarath
+Amey, Anthony, Belaal A, Eva V, Sarath
 
 3/8/25
 
