@@ -439,7 +439,7 @@ void access_cache(uint32_t address, int operation)
         break;
     }
 
-   
+    print_cache_index(is_i_or_d, index); //Delete me later
 }
 
 // Function to process trace file and simulate cache behavior
