@@ -44,9 +44,8 @@ void initialize_cache()
 
 void print_cache_index(bool whichCache, uint32_t index)
 {
-    if (!whichCache)
-    {
-        printf("D-Cache Data - \n");
+
+        printf("\n\nD-Cache Data - \n");
         DCacheSet tmp = dcache[index];
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
@@ -57,21 +56,18 @@ void print_cache_index(bool whichCache, uint32_t index)
             printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
             printf("\n");
         }
-    }
-    else
-    {
-        printf("I-Cache Data - \n");
-        ICacheSet tmp = icache[index];
+
+        printf("\n\nI-Cache Data - \n");
+        ICacheSet tmp1 = icache[index];
         for (int i = 0; i < L1_ICACHE_WAYS; i++)
         {
             printf("Way: %d\n", i);
-            printf("Valid: %s\t", tmp.lines[i].valid ? "true":"false");
-            printf("Tag: %03x\t", tmp.lines[i].tag);
-            printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
-            printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
+            printf("Valid: %s\t", tmp1.lines[i].valid ? "true":"false");
+            printf("Tag: %03x\t", tmp1.lines[i].tag);
+            printf("lru_counter: %d\t", tmp1.lines[i].lru_counter);
+            printf("MESI State: %s\t", MESI_State_strings[tmp1.lines[i].state]);
             printf("\n");
         }
-    }
 }
 
 void update_lru(bool is_i_or_d, int way, uint32_t index)
@@ -441,7 +437,7 @@ void access_cache(uint32_t address, int operation)
         break;
     }
 
-    //print_cache_index(is_i_or_d, index);
+   
 }
 
 // Function to process trace file and simulate cache behavior
