@@ -247,6 +247,18 @@ void handle_RFO(uint32_t index, uint32_t tag)
     return;
 }
 
+bool snoop_processors(uint32_t tag, uint32_t index) {
+    // Simulate inter-cache snooping logic
+    // In a real system, we would check L2 or use an interconnect mechanism
+
+    // Option 1: Assume a probability that another processor has it
+    if (rand() % 2 == 0) { // 50% chance another processor has it
+        return true;
+    }
+
+    return false;
+}
+
 bool write_d_cache(uint32_t index, uint32_t tag)
 {
     // For handling Case 2
@@ -298,18 +310,14 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
         // This is D-Cache
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
-            // check if valid bit is 1
-            if (dcache[index].lines[i].valid)
+            // check if valid bit is 1      &&  compare tags
+            if (dcache[index].lines[i].valid && dcache[index].lines[i].tag == tag)
             {
-                // Valid bit is set, now compare tags
-                if (dcache[index].lines[i].tag == tag)
-                {
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
                     update_MESI(is_i_or_d, i, index, true);
                     update_lru(is_i_or_d, i, index);
                     break;
-                }
             }
         }
         if (!isHit)
@@ -319,16 +327,22 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             if (debug_mode)
                 printf("Read from L2 %x\n", address);
 
-            // Handle the miss
+            // Determine if another processor has the line
+            bool another_processor_has_line = snoop_processors(tag, index);
+
             // Find which way to evict
             int evict_way = get_victim_way(false, index);
-            if (debug_mode)
+            if (debug_mode && dcache[index].lines[evict_way].state == MODIFIED)
             {
-                if (dcache[index].lines[evict_way].state == MODIFIED)
-                    printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+                printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
             }
             dcache[index].lines[evict_way].valid = true;
             dcache[index].lines[evict_way].tag = tag;
+            if (another_processor_has_line) {
+                dcache[index].lines[evict_way].state = SHARED;
+            } else {
+                dcache[index].lines[evict_way].state = EXCLUSIVE;
+            }
             dcache[index].lines[evict_way].state = EXCLUSIVE;
             update_lru(is_i_or_d, evict_way, index);
         }
@@ -340,18 +354,14 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
         // This is I-Cache
         for (int i = 0; i < L1_ICACHE_WAYS; i++)
         {
-            // check if valid bit is 1
-            if (icache[index].lines[i].valid)
+            // check if valid bit is 1      &&  compare tags
+            if (icache[index].lines[i].valid && icache[index].lines[i].tag == tag)
             {
-                // Valid bit is set, now compare tags
-                if (icache[index].lines[i].tag == tag)
-                {
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
                     update_lru(is_i_or_d, i, index);
                     update_MESI(is_i_or_d, i, index, true);
                     break;
-                }
             }
         }
         if (!isHit)
@@ -363,10 +373,9 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
 
             // Find which way to evict
             int evict_way = get_victim_way(true, index);
-            if (debug_mode)
+            if (debug_mode && icache[index].lines[evict_way].state == MODIFIED)
             {
-                if (icache[index].lines[evict_way].state == MODIFIED)
-                    printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+                printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
             }
 
             icache[index].lines[evict_way].valid = true;
