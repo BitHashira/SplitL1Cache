@@ -1,0 +1,38 @@
+// 1️⃣ Processor 0 reads from address 984DE132 → Should be EXCLUSIVE (E)
+0 984DE132
+
+// 2️⃣ Another processor (simulated via snooping) reads the same address → Should force SHARED (S)
+0 984DE132
+
+// 3️⃣ A third processor reads the same address → Should remain SHARED (S)
+0 984DE132
+
+// 4️⃣ Processor 0 writes to an address that is shared → Should cause invalidation on other caches
+1 984DE132
+
+// 5️⃣ Another processor reads the same address again → Should fetch from memory (or L2)
+0 984DE132
+
+// 6️⃣ Processor 0 reads a new address (fresh cache load) → Should be EXCLUSIVE (E)
+0 116DE12F
+
+// 7️⃣ Another processor reads the same address → Should become SHARED (S)
+0 116DE12F
+
+// 8️⃣ Processor 0 writes to a shared line → Should invalidate all other caches
+1 116DE12F
+
+// 9️⃣ Test case for invalidation (Case 3)
+3 100DE101
+
+// 🔟 Another processor requests Read-for-Ownership (RFO) on a shared line → Should invalidate
+4 116DE12F
+
+// 1️⃣1️⃣ Processor 0 writes to an already modified cache line → Should remain MODIFIED (M)
+1 116DE12F
+
+// 1️⃣2️⃣ Print cache state after these operations
+9 116DE12F
+
+// 1️⃣4️⃣ Print cache state after reset
+9 00000000
