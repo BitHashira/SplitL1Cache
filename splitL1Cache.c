@@ -106,6 +106,18 @@ void update_lru(bool is_i_or_d, int way, uint32_t index)
     }
 }
 
+bool snoop_processors(uint32_t tag, uint32_t index) {
+    // Simulate inter-cache snooping logic
+    // In a real system, we would check L2 or use an interconnect mechanism
+
+    // Option 1: Assume a probability that another processor has it
+    if (rand() % 2 == 0) { // 50% chance another processor has it
+        return true;
+    }
+
+    return false;
+}
+
 void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
 {
     // Function to update MESI state
@@ -113,22 +125,22 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
     switch (linePtr->state)
     {
     case MODIFIED:
-        if (r_or_w)
+        // If it's modified, it stays modified unless we receive an invalidation
+        // This is write
+        if (!r_or_w)
         {
-            // This is read
-            linePtr->state = MODIFIED;
-        }
-        else
-        {
-            // This is write
             linePtr->state = MODIFIED;
         }
         break;
     case EXCLUSIVE:
         if (r_or_w)
         {
-            // This is read
-            linePtr->state = EXCLUSIVE;
+            // If another processor reads, move to SHARED
+            bool another_processor_has_line = snoop_processors(linePtr->tag, index);
+            if (another_processor_has_line)
+            {
+                linePtr->state = SHARED;
+            }
         }
         else
         {
@@ -247,18 +259,6 @@ void handle_RFO(uint32_t index, uint32_t tag)
     return;
 }
 
-bool snoop_processors(uint32_t tag, uint32_t index) {
-    // Simulate inter-cache snooping logic
-    // In a real system, we would check L2 or use an interconnect mechanism
-
-    // Option 1: Assume a probability that another processor has it
-    if (rand() % 2 == 0) { // 50% chance another processor has it
-        return true;
-    }
-
-    return false;
-}
-
 bool write_d_cache(uint32_t index, uint32_t tag)
 {
     // For handling Case 2
@@ -315,6 +315,16 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             {
                     // Tag bit also matches, this means we have a Hit
                     isHit = true;
+
+                     // If another processor reads this line and it's in EXCLUSIVE, move to SHARED
+                    if (dcache[index].lines[i].state == EXCLUSIVE)
+                    {
+                        bool another_processor_has_line = snoop_processors(tag, index);
+                        if (another_processor_has_line)
+                        {
+                            dcache[index].lines[i].state = SHARED;  // Downgrade to SHARED
+                        }
+                    }
                     update_MESI(is_i_or_d, i, index, true);
                     update_lru(is_i_or_d, i, index);
                     break;
@@ -343,7 +353,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             } else {
                 dcache[index].lines[evict_way].state = EXCLUSIVE;
             }
-            dcache[index].lines[evict_way].state = EXCLUSIVE;
+            
             update_lru(is_i_or_d, evict_way, index);
         }
     }
@@ -357,11 +367,11 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             // check if valid bit is 1      &&  compare tags
             if (icache[index].lines[i].valid && icache[index].lines[i].tag == tag)
             {
-                    // Tag bit also matches, this means we have a Hit
-                    isHit = true;
-                    update_lru(is_i_or_d, i, index);
-                    update_MESI(is_i_or_d, i, index, true);
-                    break;
+                // Tag bit also matches, this means we have a Hit
+                isHit = true;
+                update_lru(is_i_or_d, i, index);
+                update_MESI(is_i_or_d, i, index, true);
+                break;
             }
         }
         if (!isHit)
