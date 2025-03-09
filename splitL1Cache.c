@@ -107,15 +107,15 @@ void update_lru(bool is_i_or_d, int way, uint32_t index)
 }
 
 bool snoop_processors(uint32_t tag, uint32_t index) {
-    // Simulate inter-cache snooping logic
-    // In a real system, we would check L2 or use an interconnect mechanism
-
-    // Option 1: Assume a probability that another processor has it
-    if (rand() % 2 == 0) { // 50% chance another processor has it
-        return true;
+    // Simulate snooping by checking if another cache has the line in E or S
+    for (int i = 0; i < L1_DCACHE_WAYS; i++) {
+        if (dcache[index].lines[i].valid && dcache[index].lines[i].tag == tag) {
+            if (dcache[index].lines[i].state == SHARED || dcache[index].lines[i].state == EXCLUSIVE) {
+                return true; // Another processor has the line
+            }
+        }
     }
-
-    return false;
+    return false; // No other processor has it
 }
 
 void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
@@ -417,7 +417,6 @@ void access_cache(uint32_t address, int operation)
     switch (operation)
     {
     case 0:
-        break;
     case 2:
         cache_reads++;
         if (read_cache(is_i_or_d, index, tag))
