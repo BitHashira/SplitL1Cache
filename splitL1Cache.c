@@ -51,29 +51,29 @@ void initialize_cache()
 void print_cache_index(bool whichCache, uint32_t index)
 {
 
-        printf("\n\nD-Cache Data - \n");
-        DCacheSet tmp = dcache[index];
-        for (int i = 0; i < L1_DCACHE_WAYS; i++)
-        {
-            printf("Way: %d\n", i);
-            printf("Valid: %s\t", tmp.lines[i].valid ? "true":"false");
-            printf("Tag: %03x\t", tmp.lines[i].tag);
-            printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
-            printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
-            printf("\n");
-        }
+    printf("\n\nD-Cache Data - \n");
+    DCacheSet tmp = dcache[index];
+    for (int i = 0; i < L1_DCACHE_WAYS; i++)
+    {
+        printf("Way: %d\n", i);
+        printf("Valid: %s\t", tmp.lines[i].valid ? "true" : "false");
+        printf("Tag: %03x\t", tmp.lines[i].tag);
+        printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
+        printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
+        printf("\n");
+    }
 
-        printf("\n\nI-Cache Data - \n");
-        ICacheSet tmp1 = icache[index];
-        for (int i = 0; i < L1_ICACHE_WAYS; i++)
-        {
-            printf("Way: %d\n", i);
-            printf("Valid: %s\t", tmp1.lines[i].valid ? "true":"false");
-            printf("Tag: %03x\t", tmp1.lines[i].tag);
-            printf("lru_counter: %d\t", tmp1.lines[i].lru_counter);
-            printf("MESI State: %s\t", MESI_State_strings[tmp1.lines[i].state]);
-            printf("\n");
-        }
+    printf("\n\nI-Cache Data - \n");
+    ICacheSet tmp1 = icache[index];
+    for (int i = 0; i < L1_ICACHE_WAYS; i++)
+    {
+        printf("Way: %d\n", i);
+        printf("Valid: %s\t", tmp1.lines[i].valid ? "true" : "false");
+        printf("Tag: %03x\t", tmp1.lines[i].tag);
+        printf("lru_counter: %d\t", tmp1.lines[i].lru_counter);
+        printf("MESI State: %s\t", MESI_State_strings[tmp1.lines[i].state]);
+        printf("\n");
+    }
 }
 
 void update_lru(bool is_i_or_d, int way, uint32_t index)
@@ -106,11 +106,15 @@ void update_lru(bool is_i_or_d, int way, uint32_t index)
     }
 }
 
-bool snoop_processors(uint32_t tag, uint32_t index) {
+bool snoop_processors(uint32_t tag, uint32_t index)
+{
     // Simulate snooping by checking if another cache has the line in E or S
-    for (int i = 0; i < L1_DCACHE_WAYS; i++) {
-        if (dcache[index].lines[i].valid && dcache[index].lines[i].tag == tag) {
-            if (dcache[index].lines[i].state == SHARED || dcache[index].lines[i].state == EXCLUSIVE) {
+    for (int i = 0; i < L1_DCACHE_WAYS; i++)
+    {
+        if (dcache[index].lines[i].valid && dcache[index].lines[i].tag == tag)
+        {
+            if (dcache[index].lines[i].state == SHARED || dcache[index].lines[i].state == EXCLUSIVE)
+            {
                 return true; // Another processor has the line
             }
         }
@@ -220,13 +224,13 @@ void handle_invalidate(uint32_t index, uint32_t tag)
         {
             // Valid bit is set, now compare tags
             if (dcache[index].lines[i].tag == tag)
-            {   
+            {
                 dcache[index].lines[i].state = INVALID;
                 dcache[index].lines[i].valid = false;
             }
         }
     }
-return;
+    return;
 }
 
 void handle_RFO(uint32_t index, uint32_t tag)
@@ -239,14 +243,13 @@ void handle_RFO(uint32_t index, uint32_t tag)
             // Valid bit is set, now compare tags
             if (dcache[index].lines[i].tag == tag)
             {
-               
+
                 if (dcache[index].lines[i].state == MODIFIED)
                 {
-                    printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+                    printf("Return Data to L2 %x\n", address);
 
                     dcache[index].lines[i].state = INVALID;
                     dcache[index].lines[i].valid = false;
-
                 }
                 else
                 {
@@ -291,7 +294,7 @@ bool write_d_cache(uint32_t index, uint32_t tag)
         if (debug_mode)
         {
             if (dcache[index].lines[evict_way].state == MODIFIED)
-                printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+                printf("Write to L2 %x\n", address);
         }
         dcache[index].lines[evict_way].valid = true;
         dcache[index].lines[evict_way].tag = tag;
@@ -313,21 +316,21 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             // check if valid bit is 1      &&  compare tags
             if (dcache[index].lines[i].valid && dcache[index].lines[i].tag == tag)
             {
-                    // Tag bit also matches, this means we have a Hit
-                    isHit = true;
+                // Tag bit also matches, this means we have a Hit
+                isHit = true;
 
-                     // If another processor reads this line and it's in EXCLUSIVE, move to SHARED
-                    if (dcache[index].lines[i].state == EXCLUSIVE)
+                // If another processor reads this line and it's in EXCLUSIVE, move to SHARED
+                if (dcache[index].lines[i].state == EXCLUSIVE)
+                {
+                    bool another_processor_has_line = snoop_processors(tag, index);
+                    if (another_processor_has_line)
                     {
-                        bool another_processor_has_line = snoop_processors(tag, index);
-                        if (another_processor_has_line)
-                        {
-                            dcache[index].lines[i].state = SHARED;  // Downgrade to SHARED
-                        }
+                        dcache[index].lines[i].state = SHARED; // Downgrade to SHARED
                     }
-                    update_MESI(is_i_or_d, i, index, true);
-                    update_lru(is_i_or_d, i, index);
-                    break;
+                }
+                update_MESI(is_i_or_d, i, index, true);
+                update_lru(is_i_or_d, i, index);
+                break;
             }
         }
         if (!isHit)
@@ -344,16 +347,19 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             int evict_way = get_victim_way(false, index);
             if (debug_mode && dcache[index].lines[evict_way].state == MODIFIED)
             {
-                printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+                printf("Write to L2 %x\n", address);
             }
             dcache[index].lines[evict_way].valid = true;
             dcache[index].lines[evict_way].tag = tag;
-            if (another_processor_has_line) {
+            if (another_processor_has_line)
+            {
                 dcache[index].lines[evict_way].state = SHARED;
-            } else {
+            }
+            else
+            {
                 dcache[index].lines[evict_way].state = EXCLUSIVE;
             }
-            
+
             update_lru(is_i_or_d, evict_way, index);
         }
     }
@@ -385,7 +391,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             int evict_way = get_victim_way(true, index);
             if (debug_mode && icache[index].lines[evict_way].state == MODIFIED)
             {
-                printf("Write to L2 %x\n", (tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE);
+                printf("Write to L2 %x\n", address);
             }
 
             icache[index].lines[evict_way].valid = true;
@@ -440,11 +446,11 @@ void access_cache(uint32_t address, int operation)
         }
         break;
     case 3:
-        handle_invalidate(index,tag);
+        handle_invalidate(index, tag);
         printf("\n\nInvalidate Command Sent to all Processors.\n\n\n");
         break;
     case 4:
-        handle_RFO(index,tag);
+        handle_RFO(index, tag);
         break;
 
     case 8:
@@ -457,10 +463,9 @@ void access_cache(uint32_t address, int operation)
         break;
     }
 
-    print_cache_index(is_i_or_d, index); //Delete me later
+    print_cache_index(is_i_or_d, index); // Delete me later
 }
 
-// Function to process trace file and simulate cache behavior
 void process_trace_file(const char *filename)
 {
     FILE *file = fopen(filename, "r");
@@ -470,12 +475,43 @@ void process_trace_file(const char *filename)
         return;
     }
 
-    while (fscanf(file, "%d %x", &operation, &address) == 2)
+    char line[256]; // Buffer to read each line
+    while (fgets(line, sizeof(line), file))
     {
-        access_cache(address, operation);
+        // Skip lines that start with `//` (comments)
+        if (line[0] == '/' && line[1] == '/')
+        {
+            continue;
+        }
+
+        // Parse operation and address
+        int operation;
+        // uint32_t address;
+        if (sscanf(line, "%d %x", &operation, &address) == 2)
+        {
+            access_cache(address, operation);
+        }
     }
+
     fclose(file);
 }
+
+// Function to process trace file and simulate cache behavior
+// void process_trace_file(const char *filename)
+// {
+//     FILE *file = fopen(filename, "r");
+//     if (!file)
+//     {
+//         perror("Error opening trace file");
+//         return;
+//     }
+//
+//     while (fscanf(file, "%d %x", &operation, &address) == 2)
+//     {
+//         access_cache(address, operation);
+//     }
+//     fclose(file);
+// }
 
 void print_stats()
 {
