@@ -51,30 +51,64 @@ void initialize_cache()
 void print_cache_index(bool whichCache, uint32_t index)
 {
 
-    printf("\n\nD-Cache Data - \n");
+    printf("\n\n+------------------------------+\n");
+    printf("| D-Cache Data at Index = %x | \n", index);
     DCacheSet tmp = dcache[index];
     for (int i = 0; i < L1_DCACHE_WAYS; i++)
     {
-        printf("Way: %d\n", i);
-        printf("Valid: %s\t", tmp.lines[i].valid ? "true" : "false");
-        printf("Tag: %03x\t", tmp.lines[i].tag);
-        printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
-        printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
+        printf("+--------++-------------------------------------------------------------------+\n");
+        printf("| Way: %d |", i);
+        printf("| Valid: %5s  ", tmp.lines[i].valid ? "true" : "false");
+        printf("| Tag: %03x  ", tmp.lines[i].tag);
+        printf("| lru_cntr: %01d  ", tmp.lines[i].lru_counter);
+        printf("| MESI State: %9s  |", MESI_State_strings[tmp.lines[i].state]);
         printf("\n");
     }
+    printf("+--------++-------------------------------------------------------------------+\n");
 
-    printf("\n\nI-Cache Data - \n");
+    printf("+------------------------------+\n");
+    printf("| I-Cache Data at Index = %x | \n", index);
     ICacheSet tmp1 = icache[index];
     for (int i = 0; i < L1_ICACHE_WAYS; i++)
     {
-        printf("Way: %d\n", i);
-        printf("Valid: %s\t", tmp1.lines[i].valid ? "true" : "false");
-        printf("Tag: %03x\t", tmp1.lines[i].tag);
-        printf("lru_counter: %d\t", tmp1.lines[i].lru_counter);
-        printf("MESI State: %s\t", MESI_State_strings[tmp1.lines[i].state]);
+        printf("+--------++-------------------------------------------------------------------+\n");
+        printf("| Way: %d |", i);
+        printf("| Valid: %5s  ", tmp1.lines[i].valid ? "true" : "false");
+        printf("| Tag: %03x  ", tmp1.lines[i].tag);
+        printf("| lru_cntr: %01d  ", tmp1.lines[i].lru_counter);
+        printf("| MESI State: %9s  |", MESI_State_strings[tmp1.lines[i].state]);
         printf("\n");
     }
+    printf("+--------++-------------------------------------------------------------------+\n");
 }
+
+// void print_cache_index(bool whichCache, uint32_t index)
+// {
+//
+//     printf("\n\nD-Cache Data - \n");
+//     DCacheSet tmp = dcache[index];
+//     for (int i = 0; i < L1_DCACHE_WAYS; i++)
+//     {
+//         printf("Way: %d\n", i);
+//         printf("Valid: %s\t", tmp.lines[i].valid ? "true" : "false");
+//         printf("Tag: %03x\t", tmp.lines[i].tag);
+//         printf("lru_counter: %d\t", tmp.lines[i].lru_counter);
+//         printf("MESI State: %s\t", MESI_State_strings[tmp.lines[i].state]);
+//         printf("\n");
+//     }
+//
+//     printf("\n\nI-Cache Data - \n");
+//     ICacheSet tmp1 = icache[index];
+//     for (int i = 0; i < L1_ICACHE_WAYS; i++)
+//     {
+//         printf("Way: %d\n", i);
+//         printf("Valid: %s\t", tmp1.lines[i].valid ? "true" : "false");
+//         printf("Tag: %03x\t", tmp1.lines[i].tag);
+//         printf("lru_counter: %d\t", tmp1.lines[i].lru_counter);
+//         printf("MESI State: %s\t", MESI_State_strings[tmp1.lines[i].state]);
+//         printf("\n");
+//     }
+// }
 
 void update_lru(bool is_i_or_d, int way, uint32_t index)
 {
@@ -140,11 +174,12 @@ void update_MESI(bool is_i_or_d, int way, uint32_t index, bool r_or_w)
         if (r_or_w)
         {
             // If another processor reads, move to SHARED
-            bool another_processor_has_line = snoop_processors(linePtr->tag, index);
-            if (another_processor_has_line)
-            {
-                linePtr->state = SHARED;
-            }
+            // bool another_processor_has_line = snoop_processors(linePtr->tag, index);
+            // if (another_processor_has_line)
+            // {
+            // If we are in EXCLUSIVE and it is a READ to the same address, we assume it is snoop
+            linePtr->state = SHARED;
+            // }
         }
         else
         {
@@ -309,7 +344,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
     bool isHit = false;
     if (!is_i_or_d)
     {
-        printf("I am in D-Cache read\n");
+        // printf("I am in D-Cache read\n");
         // This is D-Cache
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
@@ -351,21 +386,21 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             }
             dcache[index].lines[evict_way].valid = true;
             dcache[index].lines[evict_way].tag = tag;
-            if (another_processor_has_line)
-            {
-                dcache[index].lines[evict_way].state = SHARED;
-            }
-            else
-            {
-                dcache[index].lines[evict_way].state = EXCLUSIVE;
-            }
+            // if (another_processor_has_line)
+            // {
+            //     dcache[index].lines[evict_way].state = SHARED;
+            // }
+            // else
+            // {
+            dcache[index].lines[evict_way].state = EXCLUSIVE;
+            // }
 
             update_lru(is_i_or_d, evict_way, index);
         }
     }
     else
     {
-        printf("I am in I-Cache read\n");
+        // printf("I am in I-Cache read\n");
         isHit = false;
         // This is I-Cache
         for (int i = 0; i < L1_ICACHE_WAYS; i++)
@@ -406,7 +441,8 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
 // Function to access the cache (read/write operations)
 void access_cache(uint32_t address, int operation)
 {
-    printf("\nYou have given me case: %d\n", operation);
+    if (debug_mode)
+        printf("\nYou have given me case: %d\n", operation);
 
     bool is_write = (operation == 1);
     bool is_i_or_d = (operation == 2);
@@ -414,11 +450,13 @@ void access_cache(uint32_t address, int operation)
     uint32_t index = (address / CACHE_LINE_SIZE) % L1_CACHE_SETS;
     uint32_t tag = address / (CACHE_LINE_SIZE * L1_CACHE_SETS);
 
-    printf("Given Addr: %x\n", address);
-    printf("Index: %x\n", index);
-    printf("Tag: %x\n", tag);
-
-    printf("is_i_or_d: %s\n", is_i_or_d ? "true" : "false");
+    if (debug_mode)
+    {
+        printf("Given Addr: %x\n", address);
+        printf("Index: %x\n", index);
+        printf("Tag: %x\n", tag);
+        // printf("is_i_or_d: %s\n", is_i_or_d ? "true" : "false");
+    }
 
     switch (operation)
     {
@@ -427,10 +465,14 @@ void access_cache(uint32_t address, int operation)
         cache_reads++;
         if (read_cache(is_i_or_d, index, tag))
         {
+            if (debug_mode)
+                printf("Cache Read HIT");
             cache_hits++;
         }
         else
         {
+            if (debug_mode)
+                printf("Cache Read MISS");
             cache_misses++;
         }
         break;
@@ -438,10 +480,14 @@ void access_cache(uint32_t address, int operation)
         cache_writes++;
         if (write_d_cache(index, tag))
         {
+            if (debug_mode)
+                printf("Cache Write HIT");
             cache_hits++;
         }
         else
         {
+            if (debug_mode)
+                printf("Cache Write MISS");
             cache_misses++;
         }
         break;
@@ -452,7 +498,6 @@ void access_cache(uint32_t address, int operation)
     case 4:
         handle_RFO(index, tag);
         break;
-
     case 8:
         initialize_cache();
         break;
@@ -463,7 +508,8 @@ void access_cache(uint32_t address, int operation)
         break;
     }
 
-    print_cache_index(is_i_or_d, index); // Delete me later
+    if (debug_mode)
+        print_cache_index(is_i_or_d, index); // Delete me later
 }
 
 void process_trace_file(const char *filename)
@@ -532,7 +578,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    debug_mode = argv[2];
+    debug_mode = atoi(argv[2]);
+    printf("Running in Debug Mode: %b\n", debug_mode);
 
     initialize_cache();
     process_trace_file(argv[1]);
