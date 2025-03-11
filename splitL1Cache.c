@@ -355,14 +355,14 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                 isHit = true;
 
                 // If another processor reads this line and it's in EXCLUSIVE, move to SHARED
-                if (dcache[index].lines[i].state == EXCLUSIVE)
-                {
-                    bool another_processor_has_line = snoop_processors(tag, index);
-                    if (another_processor_has_line)
-                    {
-                        dcache[index].lines[i].state = SHARED; // Downgrade to SHARED
-                    }
-                }
+                // if (dcache[index].lines[i].state == EXCLUSIVE)
+                // {
+                //     bool another_processor_has_line = snoop_processors(tag, index);
+                //     if (another_processor_has_line)
+                //     {
+                //         dcache[index].lines[i].state = SHARED; // Downgrade to SHARED
+                //     }
+                // }
                 update_MESI(is_i_or_d, i, index, true);
                 update_lru(is_i_or_d, i, index);
                 break;
@@ -376,7 +376,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
                 printf("Read from L2 %x\n", address);
 
             // Determine if another processor has the line
-            bool another_processor_has_line = snoop_processors(tag, index);
+            // bool another_processor_has_line = snoop_processors(tag, index);
 
             // Find which way to evict
             int evict_way = get_victim_way(false, index);
