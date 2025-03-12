@@ -281,7 +281,8 @@ void handle_RFO(uint32_t index, uint32_t tag)
 
                 if (dcache[index].lines[i].state == MODIFIED)
                 {
-                    printf("Return Data to L2 %x\n", address);
+                    if (debug_mode)
+                        printf("Return Data to L2 %x\n", address);
 
                     dcache[index].lines[i].state = INVALID;
                     dcache[index].lines[i].valid = false;
