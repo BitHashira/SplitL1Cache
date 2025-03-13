@@ -14,7 +14,8 @@ ICacheSet icache[L1_CACHE_SETS];
 DCacheSet dcache[L1_CACHE_SETS];
 
 // Cache statistics
-uint32_t cache_reads = 0, cache_writes = 0, cache_hits = 0, cache_misses = 0;
+uint32_t cache_reads_d = 0, cache_writes_d = 0, cache_hits_d = 0, cache_misses_d = 0;
+uint32_t cache_reads_i = 0, cache_writes_i = 0, cache_hits_i = 0, cache_misses_i = 0;
 bool debug_mode = false;
 int operation;
 uint32_t address;
@@ -22,10 +23,14 @@ uint32_t address;
 // Function to initialize caches
 void initialize_cache()
 {
-    cache_reads = 0;
-    cache_writes = 0;
-    cache_hits = 0;
-    cache_misses = 0;
+    cache_reads_d = 0;
+    cache_writes_d = 0;
+    cache_hits_d = 0;
+    cache_misses_d = 0;
+    cache_reads_i = 0;
+    cache_writes_i = 0;
+    cache_hits_i = 0;
+    cache_misses_i = 0;
     for (int i = 0; i < L1_CACHE_SETS; i++)
     {
         for (int j = 0; j < L1_ICACHE_WAYS; j++)
@@ -490,34 +495,48 @@ void access_cache(uint32_t address, int operation)
     switch (operation)
     {
     case 0:
-    case 2:
-        cache_reads++;
+        cache_reads_d++;
         if (read_cache(is_i_or_d, index, tag, byteOffset))
         {
             if (debug_mode)
-                printf("Cache Read HIT");
-            cache_hits++;
+                printf("D-Cache Read HIT");
+            cache_hits_d++;
         }
         else
         {
             if (debug_mode)
-                printf("Cache Read MISS");
-            cache_misses++;
+                printf("D-Cache Read MISS");
+            cache_misses_d++;
+        }
+        break;
+    case 2:
+        cache_reads_i++;
+        if (read_cache(is_i_or_d, index, tag, byteOffset))
+        {
+            if (debug_mode)
+                printf("I-Cache Read HIT");
+            cache_hits_i++;
+        }
+        else
+        {
+            if (debug_mode)
+                printf("I-Cache Read MISS");
+            cache_misses_i++;
         }
         break;
     case 1:
-        cache_writes++;
+        cache_writes_d++;
         if (write_d_cache(index, tag, byteOffset))
         {
             if (debug_mode)
-                printf("Cache Write HIT");
-            cache_hits++;
+                printf("D-Cache Write HIT");
+            cache_hits_d++;
         }
         else
         {
             if (debug_mode)
-                printf("Cache Write MISS");
-            cache_misses++;
+                printf("D-Cache Write MISS");
+            cache_misses_d++;
         }
         break;
     case 3:
@@ -591,11 +610,19 @@ void process_trace_file(const char *filename)
 void print_stats()
 {
     printf("\nFinal Stats - \n");
-    printf("Cache Reads: %u\n", cache_reads);
-    printf("Cache Writes: %u\n", cache_writes);
-    printf("Cache Hits: %u\n", cache_hits);
-    printf("Cache Misses: %u\n", cache_misses);
-    printf("Cache Hit Ratio: %.2f%%\n", (cache_hits * 100.0) / (cache_hits + cache_misses));
+    printf("D-Cache -\n");
+    printf("D-Cache Reads: %u\n", cache_reads_d);
+    printf("D-Cache Writes: %u\n", cache_writes_d);
+    printf("D-Cache Hits: %u\n", cache_hits_d);
+    printf("D-Cache Misses: %u\n", cache_misses_d);
+    printf("D-Cache Hit Ratio: %.2f%%\n", (cache_hits_d * 100.0) / (cache_hits_d + cache_misses_d));
+
+    printf("\nI-Cache -\n");
+    printf("I-Cache Reads: %u\n", cache_reads_i);
+    printf("I-Cache Writes: %u\n", cache_writes_i);
+    printf("I-Cache Hits: %u\n", cache_hits_i);
+    printf("I-Cache Misses: %u\n", cache_misses_i);
+    printf("I-Cache Hit Ratio: %.2f%%\n", (cache_hits_i * 100.0) / (cache_hits_i + cache_misses_i));
 }
 
 // Main function to initialize and run the simulation
