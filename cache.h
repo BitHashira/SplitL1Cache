@@ -32,8 +32,10 @@ const char *MESI_State_strings[] = {
 typedef struct
 {
     bool valid; // Valid bit
+    bool firstWrite;
     // bool tag[L1_CACHE_TAG]; // Tag for address mapping
     uint32_t tag;        // Tag for address mapping
+    uint8_t byteOffset;  // Byte-offset bits
     MESI_State state;    // MESI state
     uint8_t lru_counter; // Counter for LRU replacement
 } CacheLine;

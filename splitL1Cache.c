@@ -31,8 +31,10 @@ void initialize_cache()
         for (int j = 0; j < L1_ICACHE_WAYS; j++)
         {
             icache[i].lines[j].valid = false;
+            icache[i].lines[j].firstWrite = true;
             icache[i].lines[j].state = INVALID;
             icache[i].lines[j].tag = 000;
+            icache[i].lines[j].byteOffset = 000;
             icache[i].lines[j].lru_counter = j;
         }
     }
@@ -41,8 +43,10 @@ void initialize_cache()
         for (int j = 0; j < L1_DCACHE_WAYS; j++)
         {
             dcache[i].lines[j].valid = false;
+            dcache[i].lines[j].firstWrite = true;
             dcache[i].lines[j].state = INVALID;
             dcache[i].lines[j].tag = 000;
+            dcache[i].lines[j].byteOffset = 000;
             dcache[i].lines[j].lru_counter = j;
         }
     }
@@ -298,7 +302,7 @@ void handle_RFO(uint32_t index, uint32_t tag)
     return;
 }
 
-bool write_d_cache(uint32_t index, uint32_t tag)
+bool write_d_cache(uint32_t index, uint32_t tag, uint8_t byteOffset)
 {
     // For handling Case 2
     bool isHit = false;
@@ -311,6 +315,14 @@ bool write_d_cache(uint32_t index, uint32_t tag)
             if (dcache[index].lines[i].tag == tag)
             {
                 // Tag bit also matches, this means we have a Hit
+                if (debug_mode)
+                {
+                    if (dcache[index].lines[i].firstWrite)
+                    {
+                        printf("Write to L2 %x\n", address);
+                        dcache[index].lines[i].firstWrite = false;
+                    }
+                }
                 isHit = true;
                 update_MESI(false, i, index, false);
                 update_lru(false, i, index);
@@ -329,18 +341,30 @@ bool write_d_cache(uint32_t index, uint32_t tag)
         int evict_way = get_victim_way(false, index);
         if (debug_mode)
         {
+            if (dcache[index].lines[evict_way].firstWrite)
+            {
+                if (dcache[index].lines[evict_way].state == INVALID)
+                    printf("Write to L2 %x\n", address);
+                else
+                    printf("Write to L2 %x\n", (dcache[index].lines[evict_way].tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE + dcache[index].lines[evict_way].byteOffset);
+                dcache[index].lines[evict_way].firstWrite = false;
+            }
             if (dcache[index].lines[evict_way].state == MODIFIED)
-                printf("Write to L2 %x\n", address);
+            {
+                // printf("Write to L2 %x\n", address);
+                printf("Write to L2 %x\n", (dcache[index].lines[evict_way].tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE + dcache[index].lines[evict_way].byteOffset);
+            }
         }
         dcache[index].lines[evict_way].valid = true;
         dcache[index].lines[evict_way].tag = tag;
+        dcache[index].lines[evict_way].byteOffset = byteOffset;
         dcache[index].lines[evict_way].state = MODIFIED;
         update_lru(false, evict_way, index);
     }
     return isHit;
 }
 
-bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
+bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset)
 {
     bool isHit = false;
     if (!is_i_or_d)
@@ -383,10 +407,12 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             int evict_way = get_victim_way(false, index);
             if (debug_mode && dcache[index].lines[evict_way].state == MODIFIED)
             {
-                printf("Write to L2 %x\n", address);
+                // printf("Write to L2 %x\n", address);
+                printf("Write to L2 %x\n", (dcache[index].lines[evict_way].tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE + dcache[index].lines[evict_way].byteOffset);
             }
             dcache[index].lines[evict_way].valid = true;
             dcache[index].lines[evict_way].tag = tag;
+            dcache[index].lines[evict_way].byteOffset = byteOffset;
             // if (another_processor_has_line)
             // {
             //     dcache[index].lines[evict_way].state = SHARED;
@@ -427,11 +453,12 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag)
             int evict_way = get_victim_way(true, index);
             if (debug_mode && icache[index].lines[evict_way].state == MODIFIED)
             {
-                printf("Write to L2 %x\n", address);
+                printf("Write to L2 %x\n", (icache[index].lines[evict_way].tag * L1_CACHE_SETS + index) * CACHE_LINE_SIZE + icache[index].lines[evict_way].byteOffset);
             }
 
             icache[index].lines[evict_way].valid = true;
             icache[index].lines[evict_way].tag = tag;
+            icache[index].lines[evict_way].byteOffset = byteOffset;
             icache[index].lines[evict_way].state = EXCLUSIVE;
             update_lru(is_i_or_d, evict_way, index);
         }
@@ -450,6 +477,7 @@ void access_cache(uint32_t address, int operation)
 
     uint32_t index = (address / CACHE_LINE_SIZE) % L1_CACHE_SETS;
     uint32_t tag = address / (CACHE_LINE_SIZE * L1_CACHE_SETS);
+    uint8_t byteOffset = address & (CACHE_LINE_SIZE - 1);
 
     if (debug_mode)
     {
@@ -464,7 +492,7 @@ void access_cache(uint32_t address, int operation)
     case 0:
     case 2:
         cache_reads++;
-        if (read_cache(is_i_or_d, index, tag))
+        if (read_cache(is_i_or_d, index, tag, byteOffset))
         {
             if (debug_mode)
                 printf("Cache Read HIT");
@@ -479,7 +507,7 @@ void access_cache(uint32_t address, int operation)
         break;
     case 1:
         cache_writes++;
-        if (write_d_cache(index, tag))
+        if (write_d_cache(index, tag, byteOffset))
         {
             if (debug_mode)
                 printf("Cache Write HIT");
