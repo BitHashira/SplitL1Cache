@@ -545,6 +545,19 @@ void access_cache(uint32_t address, int operation)
         break;
     case 4:
         handle_RFO(index, tag);
+                cache_reads_d++;
+        if (read_cache(is_i_or_d, index, tag, byteOffset))
+        {
+            if (debug_mode)
+                printf("D-Cache Read HIT");
+            cache_hits_d++;
+        }
+        else
+        {
+            if (debug_mode)
+                printf("D-Cache Read MISS");
+            cache_misses_d++;
+        }
         break;
     case 8:
         initialize_cache();
