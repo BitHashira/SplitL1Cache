@@ -277,40 +277,12 @@ void handle_invalidate(uint32_t index, uint32_t tag)
     return;
 }
 
-void handle_RFO(uint32_t index, uint32_t tag)
-{
-    for (int i = 0; i < L1_DCACHE_WAYS; i++)
-    {
-        // check if valid bit is 1
-        if (dcache[index].lines[i].valid)
-        {
-            // Valid bit is set, now compare tags
-            if (dcache[index].lines[i].tag == tag)
-            {
-
-                if (dcache[index].lines[i].state == MODIFIED)
-                {
-                    if (debug_mode)
-                        printf("Return Data to L2 %x\n", address);
-
-                    dcache[index].lines[i].state = INVALID;
-                    dcache[index].lines[i].valid = false;
-                }
-                else
-                {
-                    dcache[index].lines[i].state = INVALID;
-                    dcache[index].lines[i].valid = false;
-                }
-            }
-        }
-    }
-    return;
-}
 
 bool write_d_cache(uint32_t index, uint32_t tag, uint8_t byteOffset)
 {
     // For handling Case 2
     bool isHit = false;
+    cache_writes_d++;
     for (int i = 0; i < L1_DCACHE_WAYS; i++)
     {
         // check if valid bit is 1
@@ -329,6 +301,7 @@ bool write_d_cache(uint32_t index, uint32_t tag, uint8_t byteOffset)
                     }
                 }
                 isHit = true;
+                cache_hits_d++;
                 update_MESI(false, i, index, false);
                 update_lru(false, i, index);
                 break;
@@ -338,6 +311,7 @@ bool write_d_cache(uint32_t index, uint32_t tag, uint8_t byteOffset)
     if (!isHit)
     {
         // Handle the miss
+        cache_misses_d++;
         // Debug print to L2
         if (debug_mode)
             printf("Read for Ownership from L2 %x\n", address);
@@ -376,6 +350,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
     {
         // printf("I am in D-Cache read\n");
         // This is D-Cache
+        cache_reads_d++;
         for (int i = 0; i < L1_DCACHE_WAYS; i++)
         {
             // check if valid bit is 1      &&  compare tags
@@ -383,7 +358,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
             {
                 // Tag bit also matches, this means we have a Hit
                 isHit = true;
-
+                cache_hits_d++;
                 // If another processor reads this line and it's in EXCLUSIVE, move to SHARED
                 // if (dcache[index].lines[i].state == EXCLUSIVE)
                 // {
@@ -401,6 +376,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
         if (!isHit)
         {
             // Handle the miss
+            cache_misses_d++;
             // Debug print to L2
             if (debug_mode)
                 printf("Read from L2 %x\n", address);
@@ -433,6 +409,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
     else
     {
         // printf("I am in I-Cache read\n");
+        cache_reads_i++;
         isHit = false;
         // This is I-Cache
         for (int i = 0; i < L1_ICACHE_WAYS; i++)
@@ -442,6 +419,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
             {
                 // Tag bit also matches, this means we have a Hit
                 isHit = true;
+                cache_hits_i++;
                 update_lru(is_i_or_d, i, index);
                 update_MESI(is_i_or_d, i, index, true);
                 break;
@@ -450,6 +428,7 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
         if (!isHit)
         {
             // Handle the miss
+            cache_misses_i++;
             // Debug print to L2
             if (debug_mode)
                 printf("Read from L2 %x\n", address);
@@ -469,6 +448,43 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
         }
     }
     return isHit;
+}
+
+void handle_RFO(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset)
+{
+    bool L2return = false;
+    for (int i = 0; i < L1_DCACHE_WAYS; i++)
+    {
+        // check if valid bit is 1
+        if (dcache[index].lines[i].valid)
+        {
+            // Valid bit is set, now compare tags
+            if (dcache[index].lines[i].tag == tag && dcache[index].lines[i].state == MODIFIED)
+            {
+                if (debug_mode){
+                    printf("Return Data to L2 %x\n", address);
+                    dcache[index].lines[i].state = INVALID;
+                    dcache[index].lines[i].valid = false;
+                    L2return = true;
+                    return;
+                }
+                else
+                {
+                    dcache[index].lines[i].state = INVALID;
+                    dcache[index].lines[i].valid = false;
+                }
+            }
+       
+            break;
+        }
+    }
+    // Read if address wasn't available for L2, load to L1
+    if (!L2return){
+        read_cache(is_i_or_d, index, tag, byteOffset);
+    }
+    
+
+    return;
 }
 
 // Function to access the cache (read/write operations)
@@ -495,48 +511,39 @@ void access_cache(uint32_t address, int operation)
     switch (operation)
     {
     case 0:
-        cache_reads_d++;
         if (read_cache(is_i_or_d, index, tag, byteOffset))
         {
             if (debug_mode)
                 printf("D-Cache Read HIT");
-            cache_hits_d++;
         }
         else
         {
             if (debug_mode)
                 printf("D-Cache Read MISS");
-            cache_misses_d++;
         }
         break;
     case 2:
-        cache_reads_i++;
         if (read_cache(is_i_or_d, index, tag, byteOffset))
         {
             if (debug_mode)
                 printf("I-Cache Read HIT");
-            cache_hits_i++;
         }
         else
         {
             if (debug_mode)
                 printf("I-Cache Read MISS");
-            cache_misses_i++;
         }
         break;
     case 1:
-        cache_writes_d++;
         if (write_d_cache(index, tag, byteOffset))
         {
             if (debug_mode)
                 printf("D-Cache Write HIT");
-            cache_hits_d++;
         }
         else
         {
             if (debug_mode)
                 printf("D-Cache Write MISS");
-            cache_misses_d++;
         }
         break;
     case 3:
@@ -544,20 +551,7 @@ void access_cache(uint32_t address, int operation)
         printf("\n\nInvalidate Command Sent to all Processors.\n\n\n");
         break;
     case 4:
-        handle_RFO(index, tag);
-                cache_reads_d++;
-        if (read_cache(is_i_or_d, index, tag, byteOffset))
-        {
-            if (debug_mode)
-                printf("D-Cache Read HIT");
-            cache_hits_d++;
-        }
-        else
-        {
-            if (debug_mode)
-                printf("D-Cache Read MISS");
-            cache_misses_d++;
-        }
+        handle_RFO(is_i_or_d, index, tag, byteOffset);
         break;
     case 8:
         initialize_cache();
