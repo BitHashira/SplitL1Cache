@@ -452,36 +452,39 @@ bool read_cache(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset
 
 void handle_RFO(bool is_i_or_d, uint32_t index, uint32_t tag, uint8_t byteOffset)
 {
-    bool L2return = false;
+   // bool L2return = false;
     for (int i = 0; i < L1_DCACHE_WAYS; i++)
     {
         // check if valid bit is 1
         if (dcache[index].lines[i].valid)
         {
             // Valid bit is set, now compare tags
-            if (dcache[index].lines[i].tag == tag && dcache[index].lines[i].state == MODIFIED)
+            if (dcache[index].lines[i].tag == tag )
             {
-                if (debug_mode){
+                if (dcache[index].lines[i].state == MODIFIED)
+                {
                     printf("Return Data to L2 %x\n", address);
                     dcache[index].lines[i].state = INVALID;
                     dcache[index].lines[i].valid = false;
-                    L2return = true;
+                    
                     return;
                 }
                 else
                 {
                     dcache[index].lines[i].state = INVALID;
                     dcache[index].lines[i].valid = false;
+                   
+                    return;
                 }
             }
        
-            break;
+        
         }
     }
     // Read if address wasn't available for L2, load to L1
-    if (!L2return){
-        read_cache(is_i_or_d, index, tag, byteOffset);
-    }
+  //  if (!L2return){
+     read_cache(is_i_or_d, index, tag, byteOffset);
+   // }
     
 
     return;
@@ -563,8 +566,8 @@ void access_cache(uint32_t address, int operation)
         break;
     }
 
-    if (debug_mode)
-        print_cache_index(is_i_or_d, index); // Delete me later
+   if (debug_mode)   // Delete me later
+     print_cache_index(is_i_or_d, index); // Delete me later
 }
 
 void process_trace_file(const char *filename)
